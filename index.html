@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat with Paddington</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #000;
+            color: #fff;
+        }
+        .container {
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        .header {
+            background-color: #ff8800;
+            color: #fff;
+            padding: 10px 20px;
+            text-align: center;
+        }
+        .chat-container {
+            flex: 1;
+            overflow-y: scroll;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+        }
+        .message {
+            max-width: 70%;
+            padding: 10px;
+            margin-bottom: 10px;
+            border-radius: 10px;
+            word-wrap: break-word;
+            font-size: 14px;
+            line-height: 1.4;
+            white-space: pre-wrap;
+        }
+        .user-message {
+            align-self: flex-end;
+            background-color: #acaaa8;
+        }
+        .bot-message {
+            background-color: #ff8800;
+        }
+        .input-container {
+            display: flex;
+            padding: 20px;
+            background-color: #000;
+            border-top: 1px solid #555;
+        }
+        textarea {
+            flex: 1;
+            padding: 10px;
+            border: none;
+            border-radius: 0;
+            resize: none;
+            font-size: 14px;
+            background-color: #333;
+            color: #fff;
+        }
+        button {
+            padding: 10px 20px;
+            border: none;
+            background-color: #ff8800;
+            color: #fff;
+            font-size: 16px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">Chat with Paddington</div>
+        <div class="chat-container" id="chat-container">
+            <div class="message bot-message">
+Welcome to Paddington, the School's chatbot! Type 'exit' to end the conversation. What can I help you with?"
+            </div>
+        </div>
+        <div class="input-container">
+            <textarea id="userQuery" placeholder="Type your message here..."></textarea>
+            <button onclick="sendMessage()">Send</button>
+        </div>
+    </div>
+
+    <script>
+        async function sendMessage() {
+            const userQuery = document.getElementById('userQuery').value;
+            const chatContainer = document.getElementById('chat-container');
+            const userMessageDiv = document.createElement('div');
+            userMessageDiv.className = 'message user-message';
+            userMessageDiv.textContent = userQuery;
+            chatContainer.appendChild(userMessageDiv);
+            document.getElementById('userQuery').value = '';
+
+            const response = await fetch('/chat', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ query: userQuery })
+            });
+
+            const data = await response.json();
+            const botMessageDiv = document.createElement('div');
+            botMessageDiv.className = 'message bot-message';
+            botMessageDiv.innerHTML = `<b>Paddington:</b> ${data.response}`;
+            chatContainer.appendChild(botMessageDiv);
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+    </script>
+</body>
+</html>
