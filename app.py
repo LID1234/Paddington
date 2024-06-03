@@ -7,6 +7,7 @@ from transformers import pipeline, AutoTokenizer, AutoModelForTokenClassificatio
 import re
 import csv
 import asyncio
+import aiofiles
 from aiohttp import ClientSession
 from io import StringIO
 from datetime import datetime
@@ -28,12 +29,14 @@ df_timetable = pd.read_csv("timetable.csv")
 df_events = pd.read_csv("events.csv")
 df_highschool_info = pd.read_csv('highschool_info.csv')
 df_teacher = pd.read_csv("teachers.csv")
+df_alum = pd.read_csv("alum.csv")
 
 df.dropna(inplace=True, how='all')
 df_timetable.dropna(inplace=True, how='all')
 df_events.dropna(inplace=True, how='all')
 df_highschool_info.dropna(inplace=True, how='all')
 df_teacher.dropna(inplace=True, how='all')
+df_alum.dropna(inplace=True, how='all')
 
 
 df.columns = df.columns.str.lower().str.replace(' ', '_')
@@ -41,6 +44,9 @@ df_timetable.columns = df_timetable.columns.str.lower().str.replace(' ', '_')
 df_events.columns = df_events.columns.str.lower().str.replace(' ', '_')
 df_highschool_info.columns = df_highschool_info.columns.str.lower().str.replace(' ', '_')
 df_teacher.columns = df_teacher.columns.str.lower().str.replace(' ', '_')
+df_alum.columns = df_alum.columns.str.lower().str.replace(' ', '_')
+
+# print (df_alum)
 
 async def preprocess_query(query):
     return query.lower()
@@ -51,7 +57,6 @@ async def is_multi_word_query(query):
 async def get_highschool_info(user_input):
     user_input = await preprocess_query(user_input)
     response = ""
-    
     if "presentation" in user_input or "info" in user_input or "information" in user_input:
         if 'presentation' in df_highschool_info.columns:
             response = df_highschool_info['presentation'].dropna().iloc[0]
@@ -67,28 +72,32 @@ async def get_highschool_info(user_input):
                 "began in 1921 and was completed after four years. The school features various facilities "
                 "including classrooms, laboratories, a library, a dormitory, an auditorium, a chapel, an "
                 "amphitheater, and a gym. Over the years, it has continued to be a significant educational "
-                "and cultural institution, producing many notable alumni."
+                "and cultural institution, producing many notable alumni.\n\n Regardless of the vicissitudes of history the high school has continued to be a temple of education and culture producing generations of graduates who have always included personalities from Romanian intellectual life. Notable alumni include Constantin Coandă (general and prime minister in the 1918 cabinet and father of scientist Henri Coandă) Nicolae Paulescu (discoverer of insulin) P.P. Negulescu (academician who played an important role in the 1918 negotiations confirming the Act of December 1) as well as former students who did not complete their studies at our high school such as Constantin Nottara Mihai Fotino Dimitrie Leonida Paul Tiberiu Ciulley Dan Barbilian (Ion Barbu) Mircea Vulcănescu Șerban Țițeica Liviu Ciulei Paul Cornea Ion Diaconescu N.N. Ionescu-Galbeni and Ștefan Voitec. In 1996 as recognition of the achievements of its students and teachers the high school was awarded the title of National College."
             )
         else:
             response = "History information is not available."
-    elif "results" in user_input or "rank" in user_input or "ranking" in user_input:
-        if 'results' in df_highschool_info.columns:
-            response = df_highschool_info['results'].dropna().iloc[0]
-        else:
-            response = "Results information is not available."
-    elif "notable alumni" in user_input or "famous" in user_input or "alumni" in user_input:
-        if 'history' in df_highschool_info.columns:
-            notable_alumni_section = df_highschool_info['history'].dropna().iloc[0]
-            notable_alumni_marker = "Notable alumni include:"
-            if notable_alumni_marker in notable_alumni_section:
-                alumni_list = notable_alumni_section.split(notable_alumni_marker)[1].strip()
-                response = f"Notable alumni include:\n{alumni_list}"
-            else:
-                response = "Notable alumni information is not available."
-        else:
-            response = "Notable alumni information is not available."
     else:
         response = "I'm sorry, I couldn't find any information related to your query."
+    return response
+
+async def alum_info_func():
+    response = ""
+    event_info = df_alum[['name', 'graduation_year', 'information_rele', 'email']]
+    for index, row in event_info.iterrows():
+        name = row['name']
+        graduation_year = row['graduation_year']
+        info = row['information_rele']
+        email = row['email']
+        response += f"Student's Name: {name}\nGraduation Year: {graduation_year}\nDescription: {info}\nEmail: ({email})\n\n"
+    return response
+
+
+async def rank_info():
+    if 'results' in df_highschool_info.columns:
+        response = df_highschool_info['results'].dropna().iloc[0]
+        response += df_highschool_info['results'].dropna().iloc[1]
+    else:
+        response = "Results information is not available."
     return response
 
 async def list_all_events(user_input):
@@ -142,6 +151,7 @@ async def search_teachers_by_subject(filename, subject):
         return [f"{teacher['Name']} ({teacher['Email']}) Severity level: {teacher['Severity']}" for teacher in teachers]
     else:
         return []
+
     
 async def get_teachers_with_strict_score(file_path, strict_score):
     result = []
@@ -184,7 +194,7 @@ async def list_all_teachers():
 
 
 async def query_robotics_clubs(df):
-    robotics_keywords = ['robotics', 'robots']
+    robotics_keywords = ['robotics', 'robots', 'clubs robotics', 'robotics clubs']
     relevant_clubs = df[df['description'].str.contains('|'.join(robotics_keywords), case=False, na=False)]
     relevant_clubs = relevant_clubs[relevant_clubs['clubname'].isin(['Qube', 'Ignite', 'Neurobotix'])]
 
@@ -227,24 +237,65 @@ async def generate_class_schedule(class_name, df_timetable):
         return df_timetable[class_name.lower()].dropna().tolist()
     else:
         return []
+
+
+async def generate_class_schedule(class_name, df_timetable):
+    schedule = {}
+    classes = df_timetable['lass'].unique()
+    days = ["monday", "tuesday", "wednesday", "thursday", "friday"]
+    hours = ["8:00", "9:00", "10:00", "11:00", "12:00", "13:00", "14:00"]
     
+    class_df = df_timetable[df_timetable['class'] == class_name]
+
+    if not class_df.empty:
+        schedule_text = ""
+        for day in days:
+            day_schedule = [day.capitalize()]
+            for hour in hours:
+                subject = class_df[f"{day}_{hour}"].values[0]
+                if isinstance(subject, str):
+                    day_schedule.append(subject)
+            schedule_text += "\n\n" + " ".join(day_schedule)
+        return schedule_text
+    else:
+        return ""
+    
+
 async def get_class_timetable(user_input, df_timetable):
-    if any(keyword in user_input.lower() for keyword in ['class', 'classes', 'scheduel','schedgual','timetable' ]):
+    if any(keyword in user_input.lower() for keyword in ['class', 'classes', 'schedule', 'timetable']):
         pattern = r'(?<!\d)(9[A-I]|10[A-J]|11[A-J]|12[A-J])(?!\d)'
         match = re.search(pattern, user_input, re.IGNORECASE)
         if match:
             class_identifier = match.group(0).upper()
-            class_club_row = df_timetable[df_timetable['class'].str.contains(class_identifier, case=False, na=False)]
+            days = ["monday", "tuesday", "wednesday", "thursday", "friday"]
+            hours = ["8:00", "9:00", "10:00", "11:00", "12:00", "13:00", "14:00"]
+            class_df = df_timetable[df_timetable['class'] == class_identifier]
             
-            if not class_club_row.empty:
-                class_club_row_str = class_club_row.to_string(index=False, header=False, na_rep='').strip()                
-                class_club_row_cleaned = '\n'.join(line.strip() for line in class_club_row_str.split('\n') if line.strip())
-                return f"Class {class_identifier}:\n{class_club_row_cleaned}"
+            if not class_df.empty:
+                schedule_text = "This is the schedule for class " + class_identifier + ":\n\n"
+                for day in days:
+                    schedule_text += day.capitalize() + ":\n"
+                    day_schedule = []
+                    for hour in hours:
+                        column_name_with_underscore = f"_{day}_{hour}"
+                        column_name_without_underscore = f"{day}_{hour}"
+                        if column_name_with_underscore in class_df:
+                            subject = class_df[column_name_with_underscore].values[0]
+                        elif column_name_without_underscore in class_df:
+                            subject = class_df[column_name_without_underscore].values[0]
+                        else:
+                            subject = None
+                        if isinstance(subject, str):
+                            day_schedule.append(subject)
+                    schedule_text += ", ".join(day_schedule) + "\n"
+                return schedule_text
             else:
                 return f"No timetable found for class {class_identifier}."
         else:
             return "No valid class identifier found in the input."
     return "No relevant keywords found in the input."
+
+
 
 async def get_club_info_email(club_keyword, df):
     club_row = df[df['clubname'].str.lower().str.contains(club_keyword, case=False)]
@@ -298,7 +349,7 @@ async def generate_response(user_input, df):
             response_text = await get_club_info_email('capture', df)
         else:
             response_text = await get_club_info('capture', df)
-    elif 'physics' in user_input or 'aerospace' in user_input:
+    elif 'nassa' in user_input or 'nasa' in user_input or 'NASSA' in user_input or 'aerospace' in user_input or 'physics club' in user_input or 'physics clubs' in user_input:
         if 'contact' in user_input or 'email' in user_input or 'join' in user_input:
             response_text = await get_club_info_email('physics', df)
         else:
@@ -343,7 +394,7 @@ async def generate_response(user_input, df):
             response_text = await get_club_info_email('debate', df)
         else:
             response_text = await get_club_info('debate', df)
-    elif 'robotics' in user_input or 'robots' in user_input:
+    elif 'robotics' in user_input or 'robotics clubs' in user_input or 'clubs robotics' in user_input or 'club robotics' in user_input or 'robotic clubs' in user_input or 'robots' in user_input:
         robotics_clubs = await query_robotics_clubs(df)
         response_text = "Here is information about robotics clubs:\n\n" + robotics_clubs if robotics_clubs else "No information found about robotics clubs."
     elif 'neurobotics' in user_input or 'neurobotix' in user_input or 'neuro' in user_input:
@@ -398,6 +449,7 @@ async def generate_response(user_input, df):
                     response_text = f"No teachers found for the subject: {subject}"
             else:
                 response_text = "Please mention the subject along with the teacher query."
+
     elif 'upcoming' in user_input or 'recent' in user_input or 'events' in user_input:
         if 'list' in user_input or 'all' in user_input:
             response_text = await list_all_events(user_input)
@@ -405,6 +457,11 @@ async def generate_response(user_input, df):
             response_text = await describe_all_events(user_input)
     elif 'highschool' in user_input or 'school' in user_input or 'info' in user_input or 'history' in user_input or 'information' in user_input:
         response_text = await get_highschool_info(user_input)
+    elif "notable alumni" in user_input or "alum" in user_input or "alumni" in user_input or "graduates" in user_input:
+        response_text = f"""Among the most famous alumni of “Mihai Viteazul" National College are: Constantin Coandă, Dimitrie Racoviţă, Constantin Angelescu, Nicolae Paulescu, P.P. Negulescu, Al. Tzigara Samurcaş, Constantin Kiriţescu, Constantin Nottara, Dragomir Hurmuzescu, Horia Creangă, Petre Antonescu, Mircea Vulcănescu, Şerban Ţiţeica, Liviu Ciulei, Florin Comişel, etc.\nSome of the more recent alumni of “Mihai Viteazul" National College are:\n\n"""
+        response_text += await alum_info_func()
+    elif "results" in user_input or "rank" in user_input or "ranking" in user_input:
+        response_text = await rank_info()
     elif any(keyword in user_input.lower() for keyword in ['class', 'classes', 'scheduel','schedgual','timetable']):
         response_text = await get_class_timetable(user_input, df_timetable)
     else:
@@ -413,7 +470,7 @@ async def generate_response(user_input, df):
             response_text = "Here are the matching results from the database:\n\n"
             response_text += '\n'.join([' | '.join(map(str, row.dropna())) for row in results.values])
         else:
-            class_schedule = await generate_class_schedule(user_input, df_timetable)
+            class_schedule = generate_class_schedule(user_input, df_timetable)
             response_text = f"Here is the schedule for class {user_input}:\n\n" + '\n'.join(class_schedule) if class_schedule else "I couldn't find any information related to your query."
 
     return response_text
