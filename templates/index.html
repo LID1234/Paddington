@@ -16,12 +16,14 @@
             height: 100vh;
             display: flex;
             flex-direction: column;
+            position: relative;
         }
         .header {
             background-color: #ff8800;
             color: #fff;
             padding: 10px 20px;
             text-align: center;
+            position: relative;
         }
         .chat-container {
             flex: 1;
@@ -37,22 +39,32 @@
             margin-bottom: 10px;
             border-radius: 10px;
             word-wrap: break-word;
-            font-size: 14px;
+            font-size: 22px;
             line-height: 1.4;
             white-space: pre-wrap;
         }
         .user-message {
             align-self: flex-end;
             background-color: #acaaa8;
+            position: relative;
+            padding: 10px;
+            margin-right: 20px; 
+            margin-bottom: 20px; 
+            font-size: 22px;
         }
         .bot-message {
             background-color: #ff8800;
+            position: relative;
+            padding: 10px;
+            margin-left: 20px;
+            margin-bottom: 20px;
+            font-size: 22px;
         }
         .input-container {
             display: flex;
             padding: 20px;
             background-color: #000;
-            border-top: 1px solid #555;
+            border-top: 1px solid #adabab;
         }
         textarea {
             flex: 1;
@@ -72,15 +84,61 @@
             font-size: 16px;
             cursor: pointer;
         }
+        .top-right img {
+            width: 100px; /* Adjust size as needed */
+            height: auto;
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            z-index: 1;
+        }
+        .text-container {
+            max-width: 35%;
+            position: absolute;
+            top: 10px;
+            right: 100px;
+            background-color: transparent;
+            padding: 10px;
+            border-radius: 10px;
+            z-index: 1;
+        }
+        .message-paddington {
+            padding: 10px;
+            margin-bottom: 1px;
+            background-color: #f5f5f5;
+            border-radius: 10px;
+            font-size: 12px; 
+            color: #333;
+            z-index: 1; 
+        }
+
+        @media screen and (max-width: 600px) {
+            .text-container {
+                position: static; 
+                margin-bottom: 2px; 
+                margin-left: 180px; 
+            }
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">Chat with Paddington</div>
-        <div class="chat-container" id="chat-container">
-            <div class="message bot-message">
-Welcome to Paddington, the School's chatbot! Type 'exit' to end the conversation. What can I help you with?"
+        <div class="top-right"><img src="https://gcdnb.pbrd.co/images/fstz8hYSaroO.png?o=1" alt="Image"></div>
+        <div class="text-container"> <!-- Container for chat bubble -->
+            <div class="message-paddington">Pls keep in mind I'm in training, so act as if I'm 5.
+                This is what I've learned so far:
+                <ul>
+                    <li>teachers</li>
+                    <li>clubs</li>
+                    <li>schedules</li>
+                    <li>high school info</li>
+                    <li>alumni</li>
+                </ul>
             </div>
+        </div>
+        <div class="chat-container" id="chat-container">
+            <div class="message bot-message">Welcome to Paddington, the School's chatbot! Type 'exit' to end the conversation. What can I help you with?</div>
         </div>
         <div class="input-container">
             <textarea id="userQuery" placeholder="Type your message here..."></textarea>
